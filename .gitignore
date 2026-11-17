@@ -1,0 +1,10 @@
+target/
+*.iml
+.idea/
+.vscode/
+*.log
+.env
+*.tfstate
+*.tfstate.*
+.terraform/
+node_modules/

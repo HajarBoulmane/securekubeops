@@ -1,0 +1,63 @@
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${CUSTOMER_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${CUSTOMER_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  customer-service:
+    build: ./apps/customer-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${CUSTOMER_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_CLOUD_CONFIG_ENABLED: "false"
+      SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED: "false"
+      EUREKA_CLIENT_ENABLED: "false"
+    ports:
+      - "8056:8056"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ebank-service:
+    build: ./apps/ebank-service
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/ebankdb
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_CLOUD_CONFIG_ENABLED: "false"
+      SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED: "false"
+      EUREKA_CLIENT_ENABLED: "false"
+    ports:
+      - "8057:8057"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gateway-service:
+    build: ./apps/gateway-service
+    environment:
+      CUSTOMER_SERVICE_URL: http://customer-service:8056
+      EBANK_SERVICE_URL: http://ebank-service:8057
+      SPRING_CLOUD_CONFIG_ENABLED: "false"
+      SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED: "false"
+      EUREKA_CLIENT_ENABLED: "false"
+    ports:
+      - "9999:9999"
+    depends_on:
+      - customer-service
+      - ebank-service
+
+volumes:
+  pgdata:
